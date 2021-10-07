@@ -1,8 +1,8 @@
 const SECOND_IN_MS = 1000
-const BALL_ANIMATION_DURATION = 15 * SECOND_IN_MS
-const SECTION_PROCESS_DELAY = SECOND_IN_MS / 40
+const BALL_ANIMATION_DURATION = 10 * SECOND_IN_MS
+const SECTION_PROCESS_DELAY = SECOND_IN_MS / 100
 const TEST_ARRAY_LENGTH = 1000000
-const ITERATION_COMPLEXITY = 3000
+const ITERATION_COMPLEXITY = 2000
 
 const getSectionWithDelay = (elements, from, to, iterator) => new Promise(resolve => {
     setTimeout(() => {
@@ -28,14 +28,10 @@ const getResultsWithPermissibleSectionLength = async (elements, iterator, sectio
         const [section, delay] = await getSectionWithDelay(elements, i, i += sectionLength, iterator)
         
         results = results.concat(section)
-
-        sectionLength = Math.min(
-            Math.floor(sectionLength * sectionProcessDelay / delay) || 1,
-            elements.length
-        )
+        sectionLength = Math.min(sectionLength * sectionProcessDelay / delay, elements.length)
         
         return (delay > sectionProcessDelay / 2) || (sectionLength === elements.length)
-            ? [results, sectionLength]
+            ? [results, (Math.floor(sectionLength / 2) || 1)]
             : iterate()
     })()
 }
@@ -60,7 +56,10 @@ const chunk = async (elements, iterator, sectionProcessDelay) => {
     
                 sections.push(section)
                 
-                if (to >= elements.length) resolve(initSection.concat(...sections))
+                if (to >= elements.length) {
+                    console.log(`Sections:`, sections.length)
+                    resolve(initSection.concat(...sections))
+                }
             })(i, i += sectionLength), 0)
         }
     })
@@ -75,11 +74,10 @@ const iterator = (element, i) => {
     const initValue = i + 1
     const target = initValue * initValue
     const difference = target - initValue
+    
     let currentValue = initValue
 
-    while (currentValue < target) {
-        currentValue += difference / ITERATION_COMPLEXITY
-    }
+    while (currentValue < target) currentValue += difference / ITERATION_COMPLEXITY
 
     return Math.floor(currentValue)
 }
@@ -110,7 +108,7 @@ button.addEventListener(`click`, (evt) => {
 
     const result = chunk(elements, iterator, SECTION_PROCESS_DELAY)
 
-    result.then((res) => console.log(`chunk done`, res))
+    result.then((res) => console.log(`Chunk done. Result length:`, res.length))
 })
 
 button.addEventListener(`contextmenu`, (evt) => {
@@ -119,5 +117,5 @@ button.addEventListener(`contextmenu`, (evt) => {
 
     const result = elements.map(iterator)
 
-    console.log(`sync done`, result)
+    console.log(`Sync done. Result length:`, result.length)
 })

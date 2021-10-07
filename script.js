@@ -4,8 +4,8 @@ const SECTION_PROCESS_DELAY_BY_DEFAULT = 15
 const SECOND_IN_MS = 1000
 const BALL_ANIMATION_DURATION = 7 * SECOND_IN_MS
 const PERMISSIBLE_TIME_TO_RERENDER = SECOND_IN_MS / 40
-const TEST_ARRAY_LENGTH = 9
-const ITERATION_COMPLEXITY = 300000000
+const TEST_ARRAY_LENGTH = 100
+const ITERATION_COMPLEXITY = 30000000
 
 const median = values => {
     const sortedValues = values.slice().sort((a, b) => a - b)
@@ -115,7 +115,7 @@ button.addEventListener(`click`, (evt) => {
 
     const result = chunk(elements, iterator, PERMISSIBLE_TIME_TO_RERENDER)
 
-    result.then((res) => console.log(`chunk done`, res[res.length - 1]))
+    result.then((res) => console.log(`chunk done`, res))
 })
 
 button.addEventListener(`contextmenu`, (evt) => {
@@ -124,5 +124,5 @@ button.addEventListener(`contextmenu`, (evt) => {
 
     const result = elements.map(iterator)
 
-    console.log(`sync done`, result[result.length - 1])
+    console.log(`sync done`, result)
 })

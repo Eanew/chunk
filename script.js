@@ -1,6 +1,3 @@
-const ITERATIONS_TO_DEFINE_MEDIAN_DELAY = 10
-const SECTION_PROCESS_DELAY_BY_DEFAULT = 15
-
 const SECOND_IN_MS = 1000
 const BALL_ANIMATION_DURATION = 15 * SECOND_IN_MS
 const SECTION_PROCESS_DELAY = SECOND_IN_MS / 40
@@ -43,7 +40,7 @@ const getResultsWithPermissibleSectionLength = async (elements, iterator, sectio
     })()
 }
 
-const chunk = async (elements, iterator, sectionProcessDelay = SECTION_PROCESS_DELAY_BY_DEFAULT) => {
+const chunk = async (elements, iterator, sectionProcessDelay) => {
     const [initSection, sectionLength] = await getResultsWithPermissibleSectionLength(
         elements, iterator, sectionProcessDelay
     )

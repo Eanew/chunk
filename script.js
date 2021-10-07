@@ -4,8 +4,8 @@ const SECTION_PROCESS_DELAY_BY_DEFAULT = 15
 const SECOND_IN_MS = 1000
 const BALL_ANIMATION_DURATION = 7 * SECOND_IN_MS
 const PERMISSIBLE_TIME_TO_RERENDER = SECOND_IN_MS / 40
-const TEST_ARRAY_LENGTH = 100
-const ITERATION_COMPLEXITY = 30000000
+const TEST_ARRAY_LENGTH = 9
+const ITERATION_COMPLEXITY = 300000000
 
 const median = values => {
     const sortedValues = values.slice().sort((a, b) => a - b)
@@ -15,6 +15,7 @@ const median = values => {
         ? sortedValues[middleIndex]
         : (sortedValues[middleIndex - 1] + sortedValues[middleIndex]) / 2
 }
+
 const getIterationsByDelay = (iterationDelay, expectedDelay) => Math.ceil(expectedDelay / iterationDelay)
 
 const resultWithDelay = func => {
@@ -46,11 +47,11 @@ const resultsWithMedianDelay = async (elements, iterator) => {
 }
 
 const chunk = async (elements, iterator, sectionProcessDelay = SECTION_PROCESS_DELAY_BY_DEFAULT) => {
-    if (elements.length <= ITERATIONS_TO_DEFINE_MEDIAN_DELAY) return (elements.map(iterator))
-
     let i = ITERATIONS_TO_DEFINE_MEDIAN_DELAY
 
     const [initSection, medianDelay] = await resultsWithMedianDelay(elements.slice(0, i), iterator)
+
+    if (elements.length <= i) return (initSection)
     
     const sectionLength = getIterationsByDelay(medianDelay, sectionProcessDelay)
     const sections = []

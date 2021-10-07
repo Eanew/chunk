@@ -2,61 +2,61 @@ const ITERATIONS_TO_DEFINE_MEDIAN_DELAY = 10
 const SECTION_PROCESS_DELAY_BY_DEFAULT = 15
 
 const SECOND_IN_MS = 1000
-const BALL_ANIMATION_DURATION = 7 * SECOND_IN_MS
-const PERMISSIBLE_TIME_TO_RERENDER = SECOND_IN_MS / 40
-const TEST_ARRAY_LENGTH = 100
-const ITERATION_COMPLEXITY = 30000000
+const BALL_ANIMATION_DURATION = 15 * SECOND_IN_MS
+const SECTION_PROCESS_DELAY = SECOND_IN_MS / 40
+const TEST_ARRAY_LENGTH = 1000000
+const ITERATION_COMPLEXITY = 3000
 
-const median = values => {
-    const sortedValues = values.slice().sort((a, b) => a - b)
-    const middleIndex = Math.floor(values.length / 2)
+const getSectionWithDelay = (elements, from, to, iterator) => new Promise(resolve => {
+    setTimeout(() => {
+        const section = []
+        const start = performance.now()
 
-    return values.length % 2
-        ? sortedValues[middleIndex]
-        : (sortedValues[middleIndex - 1] + sortedValues[middleIndex]) / 2
-}
+        for (let i = from; i < Math.min(to, elements.length); i++) {
+            section.push(iterator(elements[i], i, elements))
+        }
 
-const getIterationsByDelay = (iterationDelay, expectedDelay) => Math.ceil(expectedDelay / iterationDelay)
+        const delay = (performance.now() - start) || 1
 
-const resultWithDelay = func => {
-    const start = performance.now()
-    const result = func()
-    const delay = (performance.now() - start) || 1
+        resolve([section, delay])
+    }, 0)
+})
 
-    return [result, delay]
-}
+const getResultsWithPermissibleSectionLength = async (elements, iterator, sectionProcessDelay) => {
+    let i = 0
+    let results = [iterator(elements[i], i, elements)]
+    let sectionLength = ++i
 
-const resultsWithMedianDelay = async (elements, iterator) => {
-    const results = []
-    const delays = []
+    return (async function iterate() {
+        const [section, delay] = await getSectionWithDelay(elements, i, i += sectionLength, iterator)
+        
+        results = results.concat(section)
 
-    const cortages = await Promise.all(
-        elements.map((element, i) => new Promise((resolve) => setTimeout(() => {
-            const [result, delay] = resultWithDelay(() => iterator(element, i, elements))
-
-            resolve([result, delay])
-        }, 0)))
-    )
-    
-    cortages.forEach(([result, delay]) => {
-        results.push(result)
-        delays.push(delay)
-    })
-
-    return [results, median(delays)]
+        sectionLength = Math.min(
+            Math.floor(sectionLength * sectionProcessDelay / delay) || 1,
+            elements.length
+        )
+        
+        return (delay > sectionProcessDelay / 2) || (sectionLength === elements.length)
+            ? [results, sectionLength]
+            : iterate()
+    })()
 }
 
 const chunk = async (elements, iterator, sectionProcessDelay = SECTION_PROCESS_DELAY_BY_DEFAULT) => {
-    let i = ITERATIONS_TO_DEFINE_MEDIAN_DELAY
-
-    const [initSection, medianDelay] = await resultsWithMedianDelay(elements.slice(0, i), iterator)
-
-    if (elements.length <= i) return (initSection)
+    const [initSection, sectionLength] = await getResultsWithPermissibleSectionLength(
+        elements, iterator, sectionProcessDelay
+    )
     
-    const sectionLength = getIterationsByDelay(medianDelay, sectionProcessDelay)
-    const sections = []
+    console.log(`Section length:`, sectionLength)
 
-    const result = await new Promise(resolve => {
+    if (elements.length <= initSection.length) return initSection
+
+    return new Promise(resolve => {
+        const sections = []
+        
+        let i = initSection.length
+
         while (i < elements.length) {
             setTimeout(((from, to) => () => {
                 const section = elements.slice(from, to).map((element, i) => iterator(element, from + i, elements))
@@ -67,8 +67,6 @@ const chunk = async (elements, iterator, sectionProcessDelay = SECTION_PROCESS_D
             })(i, i += sectionLength), 0)
         }
     })
-    
-    return result
 }
 
 const button = document.querySelector(`.button`)
@@ -113,7 +111,7 @@ button.addEventListener(`click`, (evt) => {
     evt.preventDefault()
     startAnimation()
 
-    const result = chunk(elements, iterator, PERMISSIBLE_TIME_TO_RERENDER)
+    const result = chunk(elements, iterator, SECTION_PROCESS_DELAY)
 
     result.then((res) => console.log(`chunk done`, res))
 })

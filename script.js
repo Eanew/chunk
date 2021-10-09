@@ -1,121 +1,130 @@
 const SECOND_IN_MS = 1000
-const BALL_ANIMATION_DURATION = 10 * SECOND_IN_MS
-const SECTION_PROCESS_DELAY = SECOND_IN_MS / 100
-const TEST_ARRAY_LENGTH = 1000000
-const ITERATION_COMPLEXITY = 2000
+const SECTION_PROCESS_DELAY = Math.floor(SECOND_IN_MS / 60)
+const SECTION_LENGTH_INFELICITY = 0.2
+const TEST_ARRAY_LENGTH = 10000
+const ITERATION_COMPLEXITY = 200000
 
-const getSectionWithDelay = (elements, from, to, iterator) => new Promise(resolve => {
-    setTimeout(() => {
-        const section = []
-        const start = performance.now()
+const macrotask = callback => (...args) => setTimeout(() => callback(...args), 0)
+const toMacrotaskQueue = callback => setTimeout(callback, 0)
 
-        for (let i = from; i < Math.min(to, elements.length); i++) {
-            section.push(iterator(elements[i], i, elements))
-        }
+const mapWithPerformanceCheck = (
+    elements,
+    iterator,
+    from,
+    to
+) => new Promise(resolve => toMacrotaskQueue(() => {
+    const results = []
+    const start = performance.now()
 
-        const delay = (performance.now() - start) || 1
+    for (let i = from; i < Math.min(elements.length, to); i++) {
+        results.push(iterator(elements[i], i, elements))
+    }
 
-        resolve([section, delay])
-    }, 0)
+    const delay = (performance.now() - start) || 1
+
+    resolve([results, delay])
+}))
+
+const mapWithPermissibleSectionLengthCheck = (
+    elements,
+    iterator,
+    sectionProcessDelay
+) => new Promise(resolve => {
+    const results = [iterator(elements[0], 0, elements)] // warming up the compiler
+
+    let sectionLength = results.length
+
+    const iterate = macrotask(() => {
+        const from = results.length
+        const to = Math.min(elements.length, from + sectionLength)
+
+        mapWithPerformanceCheck(elements, iterator, from, to).then(([section, delay]) => {
+            for (const element of section) results.push(element)
+
+            sectionLength = Math.min(elements.length, sectionLength * (sectionProcessDelay / delay))
+
+            const isEnoughToCalc = delay > sectionProcessDelay / 2
+
+            if (!isEnoughToCalc && sectionLength < elements.length) {
+                iterate()
+            } else {
+                sectionLength = Math.floor(sectionLength * (1 - SECTION_LENGTH_INFELICITY))
+                resolve([results, sectionLength || 1])
+            }
+        })
+    })
+
+    iterate()
 })
 
-const getResultsWithPermissibleSectionLength = async (elements, iterator, sectionProcessDelay) => {
-    let i = 0
-    let results = [iterator(elements[i], i, elements)]
-    let sectionLength = ++i
+const chunk = (
+    elements,
+    iterator,
+    sectionProcessDelay = SECTION_PROCESS_DELAY
+) => new Promise(resolve => {
+    const iterate = macrotask((results, sectionLength) => {
+        const from = results.length
+        const to = Math.min(elements.length, from + sectionLength)
 
-    return (async function iterate() {
-        const [section, delay] = await getSectionWithDelay(elements, i, i += sectionLength, iterator)
-        
-        results = results.concat(section)
-        sectionLength = Math.min(sectionLength * sectionProcessDelay / delay, elements.length)
-        
-        return (delay > sectionProcessDelay / 2) || (sectionLength === elements.length)
-            ? [results, (Math.floor(sectionLength / 2) || 1)]
-            : iterate()
-    })()
-}
+        for (let i = from; i < to; i++) results.push(iterator(elements[i], i, elements))
 
-const chunk = async (elements, iterator, sectionProcessDelay) => {
-    const [initSection, sectionLength] = await getResultsWithPermissibleSectionLength(
-        elements, iterator, sectionProcessDelay
-    )
-    
-    console.log(`Section length:`, sectionLength)
-
-    if (elements.length <= initSection.length) return initSection
-
-    return new Promise(resolve => {
-        const sections = []
-        
-        let i = initSection.length
-
-        while (i < elements.length) {
-            setTimeout(((from, to) => () => {
-                const section = elements.slice(from, to).map((element, i) => iterator(element, from + i, elements))
-    
-                sections.push(section)
-                
-                if (to >= elements.length) {
-                    console.log(`Sections:`, sections.length)
-                    resolve(initSection.concat(...sections))
-                }
-            })(i, i += sectionLength), 0)
-        }
+        if (to < elements.length) {
+            iterate(results, sectionLength)
+        } else resolve(results)
     })
-}
 
-const button = document.querySelector(`.button`)
-const ball = document.querySelector(`.ball`)
+    mapWithPermissibleSectionLengthCheck(elements, iterator, sectionProcessDelay)
+        .then(([results, sectionLength]) => {
+            console.log(`Section length:`, sectionLength)
+            iterate(results, sectionLength)
+        })
+})
 
 const elements = new Array(TEST_ARRAY_LENGTH).fill(null)
 
 const iterator = (element, i) => {
     const initValue = i + 1
-    const target = initValue * initValue
+    const target = initValue ** 2
     const difference = target - initValue
     
     let currentValue = initValue
+
+    console.log(`Iterate`)
 
     while (currentValue < target) currentValue += difference / ITERATION_COMPLEXITY
 
     return Math.floor(currentValue)
 }
 
+const button = document.querySelector(`.button`)
+const ball = document.querySelector(`.ball`)
+
 const startAnimation = () => {
-    const duration = BALL_ANIMATION_DURATION
     const start = performance.now()
-
-    const animation = progress => {
-        const ballRotationSpeed = duration / SECOND_IN_MS
-        const ballRotateDegrees = Math.round(progress / duration * ballRotationSpeed * 360)
-
-        ball.style.transform = `rotate(${ballRotateDegrees}deg)`
-    }
 
     requestAnimationFrame(function continueAnimation() {
         const progress = performance.now() - start
+        const ballRotateDegrees = Math.round(progress / SECOND_IN_MS * 360) % 360
 
-        animation(progress)
-
-        if (progress < duration) requestAnimationFrame(continueAnimation)
+        ball.style.transform = `rotate(${ballRotateDegrees}deg)`
+        requestAnimationFrame(continueAnimation)
     })
 }
 
 button.addEventListener(`click`, (evt) => {
     evt.preventDefault()
-    startAnimation()
 
-    const result = chunk(elements, iterator, SECTION_PROCESS_DELAY)
+    const results = chunk(elements, iterator)
 
-    result.then((res) => console.log(`Chunk done. Result length:`, res.length))
+    results.then((res) => console.log(`Chunk done. Result:`, res))
 })
 
 button.addEventListener(`contextmenu`, (evt) => {
     evt.preventDefault()
-    startAnimation()
 
-    const result = elements.map(iterator)
+    const results = elements.map(iterator)
 
-    console.log(`Sync done. Result length:`, result.length)
+    console.log(`Sync done. Result:`, results)
 })
+
+startAnimation()
